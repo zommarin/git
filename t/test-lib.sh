@@ -84,8 +84,6 @@ do
 	--no-python)
 		# noop now...
 		shift ;;
-	--no-hardlinks)
-		no_hardlinks=t; shift ;;
 	*)
 		break ;;
 	esac
