@@ -1014,12 +1014,3 @@ sig_handler_t mingw_signal(int sig, sig_handler_t handler)
 	timer_fn = handler;
 	return old;
 }
-
-#undef exit
-int git_exit(int code)
-{
-	if (code < 0)
-		exit(1);
-	exit(code);
-}
-

@@ -639,9 +639,6 @@ char **copy_environ(void);
 void free_environ(char **env);
 char **env_setenv(char **env, const char *name);
 
-extern __attribute__((noreturn)) int git_exit(int code);
-#define exit git_exit
-
 #endif /* __MINGW32__ */
 
 #ifdef NEEDS_QUICK_QSORT
