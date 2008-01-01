@@ -386,15 +386,6 @@ static inline int is_absolute_path(const char *path)
 	return path[0] == '/' || (path[0] && path[1] == ':');
 #endif
 }
-
-static inline int is_dev_null(const char *str)
-{
-#ifdef __MINGW32__
-	if (!strcmp(str, "nul"))
-		return 1;
-#endif
-	return !strcmp(str, "/dev/null");
-}
 const char *make_absolute_path(const char *path);
 /* Convert slashes in place. On Windows to backslashes. */
 char *make_native_separator(char *path);
