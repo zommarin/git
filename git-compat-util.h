@@ -552,7 +552,9 @@ static inline int fcntl(int fd, int cmd, long arg)
 
 static inline int mingw_mkdir(const char *path, int mode)
 {
-	return mkdir(path);
+	return mkdir(path) ||
+		(*path == '.' &&
+		!SetFileAttributes(path, FILE_ATTRIBUTE_HIDDEN));
 }
 #define mkdir mingw_mkdir
 
