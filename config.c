@@ -303,8 +303,9 @@ unsigned long git_config_ulong(const char *name, const char *value)
 	return ret;
 }
 
-int git_config_bool(const char *name, const char *value)
+int git_config_bool_or_int(const char *name, const char *value, int *is_bool)
 {
+	*is_bool = 1;
 	if (!value)
 		return 1;
 	if (!*value)
@@ -313,7 +314,14 @@ int git_config_bool(const char *name, const char *value)
 		return 1;
 	if (!strcasecmp(value, "false") || !strcasecmp(value, "no"))
 		return 0;
-	return git_config_int(name, value) != 0;
+	*is_bool = 0;
+	return git_config_int(name, value);
+}
+
+int git_config_bool(const char *name, const char *value)
+{
+	int discard;
+	return !!git_config_bool_or_int(name, value, &discard);
 }
 
 int git_config_string(const char **dest, const char *var, const char *value)
@@ -339,6 +347,11 @@ int git_default_config(const char *var, const char *value)
 
 	if (!strcmp(var, "core.symlinks")) {
 		has_symlinks = git_config_bool(var, value);
+		return 0;
+	}
+
+	if (!strcmp(var, "core.ignorecase")) {
+		ignore_case = git_config_bool(var, value);
 		return 0;
 	}
 

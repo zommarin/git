@@ -80,7 +80,7 @@ static int match_one(const char *match, const char *name, int namelen)
 	if (strncmp(match, name, matchlen))
 		return !fnmatch(match, name, 0) ? MATCHED_FNMATCH : 0;
 
-	if (!name[matchlen])
+	if (namelen == matchlen)
 		return MATCHED_EXACTLY;
 	if (match[matchlen-1] == '/' || name[matchlen] == '/')
 		return MATCHED_RECURSIVELY;
@@ -371,7 +371,7 @@ static struct dir_entry *dir_entry_new(const char *pathname, int len)
 
 struct dir_entry *dir_add_name(struct dir_struct *dir, const char *pathname, int len)
 {
-	if (cache_name_exists(pathname, len))
+	if (cache_name_exists(pathname, len, ignore_case))
 		return NULL;
 
 	ALLOC_GROW(dir->entries, dir->nr+1, dir->alloc);

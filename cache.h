@@ -133,6 +133,7 @@ struct cache_entry {
 #define CE_UPDATE    (0x10000)
 #define CE_REMOVE    (0x20000)
 #define CE_UPTODATE  (0x40000)
+#define CE_ADDED     (0x80000)
 
 #define CE_HASHED    (0x100000)
 #define CE_UNHASHED  (0x200000)
@@ -151,20 +152,6 @@ static inline void copy_cache_entry(struct cache_entry *dst, struct cache_entry 
 
 	/* Restore the hash state */
 	dst->ce_flags = (dst->ce_flags & ~CE_STATE_MASK) | state;
-}
-
-/*
- * We don't actually *remove* it, we can just mark it invalid so that
- * we won't find it in lookups.
- *
- * Not only would we have to search the lists (simple enough), but
- * we'd also have to rehash other hash buckets in case this makes the
- * hash bucket empty (common). So it's much better to just mark
- * it.
- */
-static inline void remove_index_entry(struct cache_entry *ce)
-{
-	ce->ce_flags |= CE_UNHASHED;
 }
 
 static inline unsigned create_ce_flags(size_t len, unsigned stage)
@@ -241,6 +228,23 @@ struct index_state {
 
 extern struct index_state the_index;
 
+/* Name hashing */
+extern void add_name_hash(struct index_state *istate, struct cache_entry *ce);
+/*
+ * We don't actually *remove* it, we can just mark it invalid so that
+ * we won't find it in lookups.
+ *
+ * Not only would we have to search the lists (simple enough), but
+ * we'd also have to rehash other hash buckets in case this makes the
+ * hash bucket empty (common). So it's much better to just mark
+ * it.
+ */
+static inline void remove_name_hash(struct cache_entry *ce)
+{
+	ce->ce_flags |= CE_UNHASHED;
+}
+
+
 #ifndef NO_THE_INDEX_COMPATIBILITY_MACROS
 #define active_cache (the_index.cache)
 #define active_nr (the_index.cache_nr)
@@ -261,7 +265,7 @@ extern struct index_state the_index;
 #define refresh_cache(flags) refresh_index(&the_index, (flags), NULL, NULL)
 #define ce_match_stat(ce, st, options) ie_match_stat(&the_index, (ce), (st), (options))
 #define ce_modified(ce, st, options) ie_modified(&the_index, (ce), (st), (options))
-#define cache_name_exists(name, namelen) index_name_exists(&the_index, (name), (namelen))
+#define cache_name_exists(name, namelen, igncase) index_name_exists(&the_index, (name), (namelen), (igncase))
 #endif
 
 enum object_type {
@@ -311,6 +315,7 @@ extern char *get_index_file(void);
 extern char *get_graft_file(void);
 extern int set_git_dir(const char *path);
 extern const char *get_git_work_tree(void);
+extern const char *read_gitfile_gently(const char *path);
 
 #define ALTERNATE_DB_ENVIRONMENT "GIT_ALTERNATE_OBJECT_DIRECTORIES"
 
@@ -350,7 +355,7 @@ extern int write_index(const struct index_state *, int newfd);
 extern int discard_index(struct index_state *);
 extern int unmerged_index(const struct index_state *);
 extern int verify_path(const char *path);
-extern int index_name_exists(struct index_state *istate, const char *name, int namelen);
+extern struct cache_entry *index_name_exists(struct index_state *istate, const char *name, int namelen, int igncase);
 extern int index_name_pos(const struct index_state *, const char *name, int namelen);
 #define ADD_CACHE_OK_TO_ADD 1		/* Ok to add */
 #define ADD_CACHE_OK_TO_REPLACE 2	/* Ok to replace file/directory */
@@ -404,6 +409,7 @@ extern int delete_ref(const char *, const unsigned char *sha1);
 extern int trust_executable_bit;
 extern int quote_path_fully;
 extern int has_symlinks;
+extern int ignore_case;
 extern int assume_unchanged;
 extern int prefer_symlink_refs;
 extern int log_all_ref_updates;
@@ -474,10 +480,20 @@ static inline void hashclr(unsigned char *hash)
 
 int git_mkstemp(char *path, size_t n, const char *template);
 
+/*
+ * NOTE NOTE NOTE!!
+ *
+ * PERM_UMASK, OLD_PERM_GROUP and OLD_PERM_EVERYBODY enumerations must
+ * not be changed. Old repositories have core.sharedrepository written in
+ * numeric format, and therefore these values are preserved for compatibility
+ * reasons.
+ */
 enum sharedrepo {
-	PERM_UMASK = 0,
-	PERM_GROUP,
-	PERM_EVERYBODY
+	PERM_UMASK          = 0,
+	OLD_PERM_GROUP      = 1,
+	OLD_PERM_EVERYBODY  = 2,
+	PERM_GROUP          = 0660,
+	PERM_EVERYBODY      = 0664,
 };
 int git_config_perm(const char *var, const char *value);
 int adjust_shared_perm(const char *path);
@@ -694,6 +710,7 @@ extern int git_parse_long(const char *, long *);
 extern int git_parse_ulong(const char *, unsigned long *);
 extern int git_config_int(const char *, const char *);
 extern unsigned long git_config_ulong(const char *, const char *);
+extern int git_config_bool_or_int(const char *, const char *, int *);
 extern int git_config_bool(const char *, const char *);
 extern int git_config_string(const char **, const char *, const char *);
 extern int git_config_set(const char *, const char *);

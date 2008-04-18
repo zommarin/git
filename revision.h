@@ -64,7 +64,8 @@ struct rev_info {
 
 	/* Format info */
 	unsigned int	shown_one:1,
-			abbrev_commit:1;
+			abbrev_commit:1,
+			use_terminator:1;
 	enum date_mode date_mode;
 
 	const char **ignore_packed; /* pretend objects in these are unpacked */
@@ -98,6 +99,7 @@ struct rev_info {
 	struct diff_options pruning;
 
 	struct reflog_walk_info *reflog_info;
+	struct decoration children;
 };
 
 #define REV_TREE_SAME		0

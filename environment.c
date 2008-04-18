@@ -14,6 +14,7 @@ char git_default_name[MAX_GITNAME];
 int trust_executable_bit = 1;
 int quote_path_fully = 1;
 int has_symlinks = 1;
+int ignore_case;
 int assume_unchanged;
 int prefer_symlink_refs;
 int is_bare_repository_cfg = -1; /* unspecified */
@@ -49,6 +50,8 @@ static char *git_object_dir, *git_index_file, *git_refs_dir, *git_graft_file;
 static void setup_git_env(void)
 {
 	git_dir = getenv(GIT_DIR_ENVIRONMENT);
+	if (!git_dir)
+		git_dir = read_gitfile_gently(DEFAULT_GIT_DIR_ENVIRONMENT);
 	if (!git_dir)
 		git_dir = DEFAULT_GIT_DIR_ENVIRONMENT;
 	git_object_dir = getenv(DB_ENVIRONMENT);
