@@ -98,7 +98,8 @@ int validate_headref(const char *path)
 	struct stat st;
 	char *buf, buffer[256];
 	unsigned char sha1[20];
-	int len, fd;
+	int fd;
+	ssize_t len;
 
 	if (lstat(path, &st) < 0)
 		return -1;
