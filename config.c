@@ -448,6 +448,8 @@ int git_default_config(const char *var, const char *value)
 		if (!value)
 			return config_error_nonbool(var);
 		strlcpy(git_default_name, value, sizeof(git_default_name));
+		if (git_default_email[0])
+			user_ident_explicitly_given = 1;
 		return 0;
 	}
 
@@ -455,6 +457,8 @@ int git_default_config(const char *var, const char *value)
 		if (!value)
 			return config_error_nonbool(var);
 		strlcpy(git_default_email, value, sizeof(git_default_email));
+		if (git_default_name[0])
+			user_ident_explicitly_given = 1;
 		return 0;
 	}
 
@@ -490,6 +494,21 @@ int git_default_config(const char *var, const char *value)
 			return 0;
 		}
 		git_branch_track = git_config_bool(var, value);
+		return 0;
+	}
+	if (!strcmp(var, "branch.autosetuprebase")) {
+		if (!value)
+			return config_error_nonbool(var);
+		else if (!strcmp(value, "never"))
+			autorebase = AUTOREBASE_NEVER;
+		else if (!strcmp(value, "local"))
+			autorebase = AUTOREBASE_LOCAL;
+		else if (!strcmp(value, "remote"))
+			autorebase = AUTOREBASE_REMOTE;
+		else if (!strcmp(value, "always"))
+			autorebase = AUTOREBASE_ALWAYS;
+		else
+			return error("Malformed value for %s", var);
 		return 0;
 	}
 
