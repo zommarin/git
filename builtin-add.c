@@ -100,15 +100,16 @@ static void update_callback(struct diff_queue_struct *q,
 		case DIFF_STATUS_UNMERGED:
 		case DIFF_STATUS_MODIFIED:
 		case DIFF_STATUS_TYPE_CHANGED:
-			if (add_file_to_cache(path, data->flags & ADD_FILES_VERBOSE)) {
-				if (!(data->flags & ADD_FILES_IGNORE_ERRORS))
+			if (add_file_to_cache(path, data->flags)) {
+				if (!(data->flags & ADD_CACHE_IGNORE_ERRORS))
 					die("updating files failed");
 				data->add_errors++;
 			}
 			break;
 		case DIFF_STATUS_DELETED:
-			remove_file_from_cache(path);
-			if (data->flags & ADD_FILES_VERBOSE)
+			if (!(data->flags & ADD_CACHE_PRETEND))
+				remove_file_from_cache(path);
+			if (data->flags & (ADD_CACHE_PRETEND|ADD_CACHE_VERBOSE))
 				printf("remove '%s'\n", path);
 			break;
 		}
@@ -234,17 +235,14 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 	newfd = hold_locked_index(&lock_file, 1);
 
 	if (take_worktree_changes) {
-		int flags = 0;
 		const char **pathspec;
+		int flags = ((verbose ? ADD_CACHE_VERBOSE : 0) |
+			     (show_only ? ADD_CACHE_PRETEND : 0) |
+			     (ignore_add_errors ? ADD_CACHE_IGNORE_ERRORS : 0));
+
 		if (read_cache() < 0)
 			die("index file corrupt");
 		pathspec = get_pathspec(prefix, argv);
-
-		if (verbose)
-			flags |= ADD_FILES_VERBOSE;
-		if (ignore_add_errors)
-			flags |= ADD_FILES_IGNORE_ERRORS;
-
 		exit_status = add_files_to_cache(prefix, pathspec, flags);
 		goto finish;
 	}
@@ -287,7 +285,7 @@ int cmd_add(int argc, const char **argv, const char *prefix)
 	}
 
 	for (i = 0; i < dir.nr; i++)
-		if (add_file_to_cache(dir.entries[i]->name, verbose)) {
+		if (add_file_to_cache(dir.entries[i]->name, verbose ? ADD_CACHE_VERBOSE : 0)) {
 			if (!ignore_add_errors)
 				die("adding files failed");
 			exit_status = 1;
