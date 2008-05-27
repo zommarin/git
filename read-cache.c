@@ -898,6 +898,16 @@ static struct cache_entry *refresh_cache_ent(struct index_state *istate,
 	if (ce_uptodate(ce))
 		return ce;
 
+	/*
+	 * assume_unchanged is used to avoid lstats to check if the
+	 * file has been modified. When true, the user need to
+	 * manually update the index.
+	 */
+	if (assume_unchanged) {
+		ce_mark_uptodate(ce);
+		return ce;
+	}
+
 	if (lstat(ce->name, &st) < 0) {
 		if (err)
 			*err = errno;
