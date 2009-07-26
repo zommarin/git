@@ -16,6 +16,12 @@ const char *system_path(const char *path)
 #endif
 	struct strbuf d = STRBUF_INIT;
 
+#ifdef __MINGW32__
+	/* On MinGW32, MSys paths need prefixing */
+	if (path[0] == '/')
+		path++;
+#endif
+
 	if (is_absolute_path(path))
 		return path;
 
