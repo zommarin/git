@@ -37,8 +37,21 @@ const unsigned char null_sha1[20];
 
 static inline int offset_1st_component(const char *path)
 {
+	char *pos;
+	
 	if (has_dos_drive_prefix(path))
 		return 2 + (path[2] == '/');
+	if (has_unc_path_prefix(path)) {
+		/* skip server name */
+		pos = strchr(path+2,'/');
+		if (!pos)
+			return 0;
+		/* skip share name */
+		do {
+			pos++;
+		} while(*pos && *pos!='/');
+		return pos-path;
+	}
 	return *path == '/';
 }
 

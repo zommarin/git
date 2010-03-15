@@ -259,6 +259,7 @@ int winansi_fprintf(FILE *stream, const char *format, ...) __attribute__((format
  */
 
 #define has_dos_drive_prefix(path) (isalpha(*(path)) && (path)[1] == ':')
+#define has_unc_path_prefix(path) (is_dir_sep(*(path)) && is_dir_sep(*((path)+1)))
 #define is_dir_sep(c) ((c) == '/' || (c) == '\\')
 #define PATH_SEP ';'
 #define PRIuMAX "I64u"
