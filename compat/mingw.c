@@ -7,6 +7,10 @@
 #include "../cache.h"
 #include "../run-command.h"
 
+#define IS_REPARSE_POINT(find_file_data) \
+	((find_file_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) && \
+	(find_file_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK))
+
 unsigned int _CRT_fmode = _O_BINARY;
 static const int delay[] = { 0, 1, 10, 20, 40 };
 
@@ -527,14 +531,11 @@ static int do_lstat(int follow, const wchar_t *file_name, struct stat *buf)
 	buf->st_mtime = filetime_to_time_t(&(fdata.ftLastWriteTime));
 	buf->st_ctime = filetime_to_time_t(&(fdata.ftCreationTime));
 
-	if (fdata.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT &&
-	    (fdata.dwReserved0 == IO_REPARSE_TAG_SYMLINK)) {
-		if (follow) {
-			wchar_t buffer[MAXIMUM_REPARSE_DATA_BUFFER_SIZE];
-			buf->st_size = wreadlink(file_name, buffer, MAXIMUM_REPARSE_DATA_BUFFER_SIZE);
-		} else {
+	if (IS_REPARSE_POINT(fdata)) {
+		if (follow)
+			buf->st_size = wreadlink(file_name, NULL, 0);
+		else
 			buf->st_mode = S_IFLNK;
-		}
 		buf->st_mode |= S_IREAD;
 		if (!(fdata.dwFileAttributes & FILE_ATTRIBUTE_READONLY))
 			buf->st_mode |= S_IWRITE;
@@ -1909,11 +1910,13 @@ int wreadlink(const wchar_t *path, wchar_t *buf, size_t bufsiz)
 				int len = b->SymbolicLinkReparseBuffer.SubstituteNameLength / sizeof(wchar_t);
 				int offset = b->SymbolicLinkReparseBuffer.SubstituteNameOffset / sizeof(wchar_t);
 				int i;
-				len = (bufsiz < len) ? bufsiz : len;
-				wcsncpy(buf, & b->SymbolicLinkReparseBuffer.PathBuffer[offset], len);
-				for (i = 0; i < len; i++)
-					if (buf[i] == L'\\')
-						buf[i] = L'/';
+				if (buf) {
+					len = (bufsiz < len) ? bufsiz : len;
+					wcsncpy(buf, & b->SymbolicLinkReparseBuffer.PathBuffer[offset], len);
+					for (i = 0; i < len; i++)
+						if (buf[i] == L'\\')
+							buf[i] = L'/';
+				}
 				CloseHandle(handle);
 				return len;
 			}
@@ -2038,8 +2041,7 @@ struct dirent *win_readdir(DIR *dir)
 
 	/* Set file type, based on WIN32_FIND_DATA */
 	wdir->dir_entry.d_type = 0;
-	if ((wdir->find_file_data.dwFileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) &&
-	    (wdir->find_file_data.dwReserved0 == IO_REPARSE_TAG_SYMLINK))
+	if (IS_REPARSE_POINT(wdir->find_file_data))
 		wdir->dir_entry.d_type |= DT_LNK;
 	else if (wdir->find_file_data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY)
 		wdir->dir_entry.d_type |= DT_DIR;
