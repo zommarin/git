@@ -383,8 +383,8 @@ int mingw_unlink(const char *pathname)
 		tries++;
 	}
 	while (ret == -1 && errno == EACCES &&
-	       ask_user_yes_no("Unlink of file '%s' failed. "
-	       "Should I try again?", pathname))
+		   ask_user_yes_no("Unlink of file '%s' failed. "
+			"Should I try again?", pathname))
 		ret = _wunlink(wpathname);
 	return ret;
 }
@@ -567,9 +567,9 @@ static int do_stat_internal(int follow, const char *file_name, struct stat *buf)
 		return -1;
 
 	namelen = wcslen(wfilename);
-	if (namelen && wfilename[namelen-1] != '/')
+	if (namelen && wfilename[namelen-1] != L'/')
 		return -1;
-	while (namelen && wfilename[namelen-1] == '/')
+	while (namelen && wfilename[namelen-1] == L'/')
 		--namelen;
 	if (!namelen || namelen >= PATH_MAX)
 		return -1;
