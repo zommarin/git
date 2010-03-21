@@ -3,7 +3,6 @@
 #include <conio.h>
 #include <winioctl.h>
 #include <wchar.h>
-#include <shellapi.h>
 #include "../strbuf.h"
 #include "../cache.h"
 #include "../run-command.h"
@@ -224,6 +223,35 @@ size_t wchar_to_utf8(char *dst, const wchar_t *src, size_t length)
 	          "flags/parameter error");
 
 	return -1;
+}
+
+/*
+ * Converts the specified zero-terminated wide string to utf8.
+ *
+ * plength is a pointer to a variable that receives the size of the returned
+ * utf8 string in bytes.
+ *
+ * Returns NULL on failure. Transfers ownership of the string to the caller.
+ */
+static char *wchar_to_utf8_auto(const wchar_t *string, size_t *plength)
+{
+	char *utf8_string;
+	size_t bytes;
+
+	bytes = wchar_to_utf8(NULL, string, 0);
+	if (bytes == -1)
+		return NULL;
+
+	utf8_string = xmallocz(bytes);
+	if (wchar_to_utf8(utf8_string, string, bytes + 1) == -1) {
+		free(utf8_string);
+		return NULL;
+	}
+
+	if (plength)
+		*plength = bytes;
+
+	return utf8_string;
 }
 
 static int make_hidden(const wchar_t *path)
@@ -1944,5 +1972,147 @@ struct dirent *win_readdir(DIR *dir)
 		wdir->dir_entry.d_type |= DT_REG;
 
 	return & wdir->dir_entry;
+}
 
+/*
+ * Returns the path of the executable file as utf8 string.
+ *
+ * plength is a pointer to a variable that receives the size of the returned
+ * utf8 string in bytes.
+ *
+ * Returns NULL on failure.
+ */
+char *get_program_name(size_t *plength)
+{
+	wchar_t *buffer;
+	size_t bufsize;
+	DWORD length;
+	char* filename;
+
+	bufsize = MAX_PATH;
+	buffer = xcalloc(bufsize, sizeof(wchar_t));
+
+	length = GetModuleFileNameW(NULL, buffer, bufsize);
+	if (!length) {
+		free(buffer);
+		errno = err_win_to_posix(GetLastError());
+		return NULL;
+	}
+
+	/* Check if buffer was big enough. This should only happen with extended
+	   \\?\ paths. */
+	if (length == bufsize && (
+	      GetLastError() == ERROR_INSUFFICIENT_BUFFER || /* Vista and later */
+	      buffer[bufsize - 1] != 0) /* XP does not zero-terminate */
+	    ) {
+
+		bufsize = 1024 + 32767; /* \\?\ expanded + 32,767 path + NUL */
+		buffer = xrealloc(buffer, bufsize);
+		length = GetModuleFileNameW(NULL, buffer, bufsize);
+		if (!length) {
+			free(buffer);
+			errno = err_win_to_posix(GetLastError());
+			return NULL;
+		}
+
+		if (length == bufsize) {
+			free(buffer);
+			errno = ENAMETOOLONG;
+			return NULL;
+		}
+	}
+
+	filename = wchar_to_utf8_auto(buffer, plength);
+	if (!filename) {
+		free(buffer);
+		return NULL;
+	}
+
+	free(buffer);
+
+	return filename;
+}
+
+/*
+ * Converts the specified wide command_line string to an utf8 argv array.
+ *
+ * pargc is a pointer to a variable that receives the number of arguments
+ * in the returned argv.
+ *
+ * Note: Makes sure that argv[0] contains a full path.
+ */
+const char** convert_command_line(const wchar_t *command_line, int *pargc)
+{
+	int argc;
+	char** argv;
+	wchar_t** wide_argv;
+	int total_bytes;
+	int bytes;
+	int* utf8_sizes;
+	char* buffer;
+	int i;
+
+	wide_argv = CommandLineToArgvW(command_line, &argc);
+	if (!wide_argv)
+		return NULL;
+
+	argv = xcalloc(argc + 1, sizeof(char*));
+	argv[argc] = NULL;
+	utf8_sizes = xcalloc(argc, sizeof(int));
+
+	argv[0] = get_program_name((size_t*)&utf8_sizes[0]);
+	if (!argv[0]) {
+		LocalFree(wide_argv);
+		free(argv);
+		free(utf8_sizes);
+		error("unable to get program name");
+		return NULL;
+	}
+
+	/* sum the size of each resulting utf8 string */
+	total_bytes = utf8_sizes[0];
+	for (i = 1; i < argc; ++i) {
+		bytes = WideCharToMultiByte(CP_UTF8, 0, wide_argv[i], -1,
+		                            NULL, 0, NULL, NULL);
+		if (!bytes) {
+			LocalFree(wide_argv);
+			free(argv);
+			free(utf8_sizes);
+			error("unable to get utf8 byte size for argv %d", i);
+			return NULL;
+		}
+
+		utf8_sizes[i] = bytes;
+		total_bytes += bytes;
+	}
+
+	buffer = xcalloc(total_bytes, sizeof(char));
+
+	/* fill the buffer with the converted strings */
+	total_bytes = utf8_sizes[0];
+	for (i = 1; i < argc; ++i) {
+		argv[i] = buffer + total_bytes;
+
+		bytes = WideCharToMultiByte(CP_UTF8, 0, wide_argv[i], -1,
+		                            argv[i], utf8_sizes[i], NULL, NULL);
+
+		if (!bytes) {
+			LocalFree(wide_argv);
+			free(argv);
+			free(utf8_sizes);
+			free(buffer);
+			error("unable to convert argv %d to utf8", i);
+			return NULL;
+		}
+
+		total_bytes += bytes;
+	}
+
+	LocalFree(wide_argv);
+	free(utf8_sizes);
+
+	if (pargc)
+		*pargc = argc;
+
+	return (const char**)argv;
 }

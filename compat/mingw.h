@@ -1,5 +1,6 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
+#include <shellapi.h>
 
 /*
  * things that are not available in header files
@@ -293,6 +294,7 @@ void mingw_mark_as_git_dir(const char *dir);
 
 char **make_augmented_environ(const char *const *vars);
 void free_environ(char **env);
+const char** convert_command_line(const wchar_t *command_line, int *pargc);
 
 /*
  * A replacement of main() that ensures that argv[0] has a path
@@ -307,7 +309,9 @@ int main(int argc, const char **argv) \
 	_setmode(_fileno(stdin), _O_BINARY); \
 	_setmode(_fileno(stdout), _O_BINARY); \
 	_setmode(_fileno(stderr), _O_BINARY); \
-	argv[0] = xstrdup(_pgmptr); \
+	argv = convert_command_line(GetCommandLineW(), &argc); \
+	if (!argv) \
+		return error("could not convert wide command line to utf-8"); \
 	return mingw_main(argc, argv); \
 } \
 static int mingw_main(c,v)
