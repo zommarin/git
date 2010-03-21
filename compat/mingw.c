@@ -798,17 +798,92 @@ char *mingw_getcwd(char *pointer, int len)
 	return pointer;
 }
 
+struct env_map {
+	char *name;
+	wchar_t *wide;
+	char *utf8;
+};
+
+static struct env_map *env_map;
+static int env_map_size = 0;
+static int env_map_alloc = 0;
+
+void env_unmap(const char *name, size_t length)
+{
+	int i;
+	for (i = 0; i < env_map_size; ++i) {
+		size_t len = strlen(env_map[i].name);
+		if (len != length)
+			continue;
+
+		if (!memcmp(env_map[i].name, name, len)) {
+			struct env_map *entry = &env_map[i];
+			free(entry->name);
+			free(entry->utf8);
+			entry->wide = NULL;
+		}
+	}
+}
+
 #undef getenv
 char *mingw_getenv(const char *name)
 {
-	char *result = getenv(name);
-	if (!result && !strcmp(name, "TMPDIR")) {
-		/* on Windows it is TMP and TEMP */
-		result = getenv("TMP");
-		if (!result)
-			result = getenv("TEMP");
+	wchar_t *wname = utf8_to_wchar_auto(name, NULL);
+	wchar_t *result = _wgetenv(wname);
+	struct env_map *entry;
+	int i;
+
+	if (!wname) {
+		error("could not convert getenv variable name '%s' to wide", name);
+		return NULL;
 	}
-	return result;
+
+	if (!result && !wcscmp(wname, L"TMPDIR")) {
+		/* on Windows it is TMP and TEMP */
+		result = _wgetenv(L"TMP");
+		if (!result)
+			result = _wgetenv(L"TEMP");
+	}
+
+	free(wname);
+
+	if (!result)
+		return NULL;
+
+	for (i = 0; i < env_map_size; ++i) {
+		if (env_map[i].wide == result)
+			return env_map[i].utf8;
+	}
+
+	/* not found */
+	ALLOC_GROW(env_map, env_map_size + 1, env_map_alloc);
+	entry = &env_map[env_map_size++];
+	entry->name = xstrdup(name);
+	entry->wide = result;
+	entry->utf8 = wchar_to_utf8_auto(result, NULL);
+
+	return entry->utf8;
+}
+
+int mingw_putenv(const char *envstring)
+{
+	char *eq = strchrnul(envstring, '=');
+	wchar_t *wenvstring = utf8_to_wchar_auto(envstring, NULL);
+
+	if (!wenvstring) {
+		error("could not convert putenv str '%s' to wide", envstring);
+		return -1;
+	}
+
+	env_unmap(envstring, eq - envstring);
+	free((char*)envstring);
+	return _wputenv(wenvstring);
+}
+
+void mingw_unsetenv(const char *name)
+{
+	env_unmap(name, strlen(name));
+	gitunsetenv(name);
 }
 
 /*

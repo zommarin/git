@@ -200,6 +200,16 @@ char *mingw_getcwd(char *pointer, int len);
 char *mingw_getenv(const char *name);
 #define getenv mingw_getenv
 
+int mingw_putenv(const char *envstring);
+#undef putenv
+#define putenv mingw_putenv
+
+void mingw_unsetenv(const char *name);
+#undef unsetenv
+#undef NO_UNSETENV
+extern void gitunsetenv(const char *);
+#define unsetenv mingw_unsetenv
+
 struct hostent *mingw_gethostbyname(const char *host);
 #define gethostbyname mingw_gethostbyname
 
