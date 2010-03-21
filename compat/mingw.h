@@ -159,10 +159,21 @@ int sigaction(int sig, struct sigaction *in, struct sigaction *out);
 int link(const char *oldpath, const char *newpath);
 int symlink(const char *oldpath, const char *newpath);
 int readlink(const char *path, char *buf, size_t bufsiz);
+int wreadlink(const wchar_t *path, wchar_t *buf, size_t bufsiz);
 
 /*
  * replacements of existing functions
  */
+
+int mingw_access(const char *filename, int mode);
+#undef access
+#define access mingw_access
+
+int mingw_chmod(const char *path, mode_t mode);
+#define chmod mingw_chmod
+
+int mingw_chdir(const char *path);
+#define chdir mingw_chdir
 
 int mingw_mkdir(const char *path, int mode);
 #define mkdir mingw_mkdir
@@ -178,6 +189,9 @@ int mingw_open (const char *filename, int oflags, ...);
 
 FILE *mingw_fopen (const char *filename, const char *mode);
 #define fopen mingw_fopen
+
+FILE *mingw_freopen(const char *path, const char *mode, FILE *stream);
+#define freopen mingw_freopen
 
 char *mingw_getcwd(char *pointer, int len);
 #define getcwd mingw_getcwd
@@ -237,6 +251,9 @@ pid_t mingw_spawnvpe(const char *cmd, const char **argv, char **env,
 void mingw_execvp(const char *cmd, char *const *argv);
 #define execvp mingw_execvp
 
+int mingw_system(const char *command);
+#define system mingw_system
+
 static inline unsigned int git_ntohl(unsigned int x)
 { return (unsigned int)ntohl(x); }
 #define ntohl git_ntohl
@@ -295,7 +312,6 @@ int main(int argc, const char **argv) \
 } \
 static int mingw_main(c,v)
 
-#ifndef NO_MINGW_REPLACE_READDIR
 /*
  * A replacement of readdir, to ensure that it reads the file type at
  * the same time. This avoid extra unneeded lstats in git on MinGW
@@ -309,7 +325,7 @@ static int mingw_main(c,v)
 #define DT_REG		2
 #define DT_LNK		3
 
-struct mingw_dirent
+struct win_dirent
 {
 	long		d_ino;			/* Always zero. */
 	union {
@@ -319,10 +335,16 @@ struct mingw_dirent
 	unsigned short	d_namlen;		/* Length of name in d_name. */
 	char		d_name[FILENAME_MAX];	/* File name. */
 };
-#define dirent mingw_dirent
-#define readdir(x) mingw_readdir(x)
-struct dirent *mingw_readdir(DIR *dir);
-#endif // !NO_MINGW_REPLACE_READDIR
+#define dirent win_dirent
+
+DIR *win_opendir(const char *name);
+#define opendir(x) win_opendir(x)
+
+int win_closedir(DIR *dir);
+#define closedir(x) win_closedir(x)
+
+struct dirent *win_readdir(DIR *dir);
+#define readdir(x) win_readdir(x)
 
 /*
  * Used by Pthread API implementation for Windows
