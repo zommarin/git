@@ -93,7 +93,7 @@ static const char *get_pwd_cwd(void)
 		stat(cwd, &cwd_stat);
 		if (!stat(pwd, &pwd_stat) &&
 		    pwd_stat.st_dev == cwd_stat.st_dev &&
-		    pwd_stat.st_ino == cwd_stat.st_ino) {
+		    pwd_stat.st_ino && pwd_stat.st_ino == cwd_stat.st_ino) {
 			strlcpy(cwd, pwd, PATH_MAX);
 		}
 	}
