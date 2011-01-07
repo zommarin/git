@@ -298,6 +298,42 @@ void mingw_mark_as_git_dir(const char *dir);
 char **make_augmented_environ(const char *const *vars);
 void free_environ(char **env);
 
+/**
+ * Converts UTF-8 encoded string to UTF-16LE. To support legacy-encoded
+ * repositories, invalid UTF-8 bytes 0xa0 - 0xff are converted to corresponding
+ * printable Unicode chars \u00a0 - \u00ff, and invalid UTF-8 bytes 0x80 - 0x9f
+ * (which would make non-printable Unicode) are converted to hex-code.
+ * Maximum space requirement for the target buffer is two wide chars per UTF-8
+ * char (((strlen(utf) * 2) + 1) [* sizeof(wchar_t)]).
+ *
+ * @param wcs wide char target buffer
+ * @param utf string to convert
+ * @param wcslen size of target buffer (in wchar_t's)
+ * @param utflen size of string to convert, or -1 if 0-terminated
+ * @return length of converted string (_wcslen(wcs)), or -1 on failure (errno
+ *         is set to EINVAL or ENAMETOOLONG)
+ * @see mbstowcs, MultiByteToWideChar
+ */
+int utftowcsn(wchar_t *wcs, const char *utf, size_t wcslen, int utflen);
+static inline int utftowcs(wchar_t *wcs, const char *utf, size_t wcslen)
+{
+	return utftowcsn(wcs, utf, wcslen, -1);
+}
+
+/**
+ * Converts UTF-16LE encoded string to UTF-8.
+ * Maximum space requirement for the target buffer is three UTF-8 chars per
+ * wide char ((_wcslen(wcs) * 3) + 1).
+ *
+ * @param utf target buffer
+ * @param wcs wide string to convert
+ * @param utflen size of target buffer
+ * @return length of converted string, or -1 on failure (errno is set to EINVAL
+ *         or ENAMETOOLONG)
+ * @see wcstombs, WideCharToMultiByte
+ */
+int wcstoutf(char *utf, const wchar_t *wcs, size_t utflen);
+
 /*
  * A replacement of main() that adds win32 specific initialization.
  */
