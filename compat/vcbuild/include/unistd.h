@@ -3,6 +3,8 @@
 
 /* Win32 define for porting git*/
 
+#pragma warning(disable : 4090 4700)
+
 #ifndef _MODE_T_
 #define	_MODE_T_
 typedef unsigned short _mode_t;
