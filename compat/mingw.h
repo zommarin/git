@@ -199,6 +199,10 @@ char *mingw_getcwd(char *pointer, int len);
 
 char *mingw_getenv(const char *name);
 #define getenv mingw_getenv
+int mingw_putenv(char *namevalue);
+#define putenv mingw_putenv
+int mingw_unsetenv(const char *name);
+#define unsetenv mingw_unsetenv
 
 struct hostent *mingw_gethostbyname(const char *host);
 #define gethostbyname mingw_gethostbyname
@@ -303,13 +307,6 @@ void mingw_open_html(const char *path);
 
 void mingw_mark_as_git_dir(const char *dir);
 #define mark_as_git_dir mingw_mark_as_git_dir
-
-/*
- * helpers
- */
-
-char **make_augmented_environ(const char *const *vars);
-void free_environ(char **env);
 
 /**
  * Converts UTF-8 encoded string to UTF-16LE. To support legacy-encoded
