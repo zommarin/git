@@ -3,6 +3,8 @@
 
 /* Win32 define for porting git*/
 
+#include <io.h>
+
 #pragma warning(disable : 4090 4700)
 
 #ifndef _MODE_T_
