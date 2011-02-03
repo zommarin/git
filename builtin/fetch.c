@@ -899,6 +899,12 @@ static int fetch_one(struct remote *remote, int argc, const char **argv)
 	return exit_code;
 }
 
+static void flush_out_and_err(void)
+{
+	fflush(stdout);
+	fflush(stderr);
+}
+
 int cmd_fetch(int argc, const char **argv, const char *prefix)
 {
 	int i;
@@ -906,11 +912,13 @@ int cmd_fetch(int argc, const char **argv, const char *prefix)
 	struct remote *remote;
 	int result = 0;
 
+atexit(flush_out_and_err);
 	/* Record the command line for the reflog */
 	strbuf_addstr(&default_rla, "fetch");
 	for (i = 1; i < argc; i++)
 		strbuf_addf(&default_rla, " %s", argv[i]);
 
+fflush(stdout); fflush(stderr);
 	argc = parse_options(argc, argv, prefix,
 			     builtin_fetch_options, builtin_fetch_usage, 0);
 
@@ -946,6 +954,8 @@ int cmd_fetch(int argc, const char **argv, const char *prefix)
 		}
 	}
 
+fflush(stderr);
+fflush(stdout);
 	if (!result && (recurse_submodules != RECURSE_SUBMODULES_OFF)) {
 		const char *options[10];
 		int num_options = 0;
@@ -959,11 +969,15 @@ int cmd_fetch(int argc, const char **argv, const char *prefix)
 						    submodule_prefix,
 						    recurse_submodules == RECURSE_SUBMODULES_ON,
 						    verbosity < 0);
+fflush(stderr);
+fflush(stdout);
 	}
 
 	/* All names were strdup()ed or strndup()ed */
 	list.strdup_strings = 1;
 	string_list_clear(&list, 0);
 
+fflush(stderr);
+fflush(stdout);
 	return result;
 }

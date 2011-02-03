@@ -312,7 +312,13 @@ int fetch_populated_submodules(int num_options, const char **options,
 			git_dir = submodule_git_dir.buf;
 		if (is_directory(git_dir)) {
 			if (!quiet)
+{
+fflush(stderr);
+fflush(stdout);
 				printf("Fetching submodule %s%s\n", prefix, ce->name);
+fflush(stderr);
+fflush(stdout);
+}
 			cp.dir = submodule_path.buf;
 			argv[argc] = submodule_prefix.buf;
 			if (run_command(&cp))
@@ -323,6 +329,10 @@ int fetch_populated_submodules(int num_options, const char **options,
 		strbuf_release(&submodule_prefix);
 	}
 	free(argv);
+	if (!quiet) {
+		fflush(stdout);
+		fflush(stderr);
+	}
 	return result;
 }
 
