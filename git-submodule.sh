@@ -79,12 +79,12 @@ module_list()
 	my ($null_sha1) = ("0" x 40);
 	while (<STDIN>) {
 		chomp;
-		my ($mode, $sha1, $stage, $path) =
+		my ($mode, $sha1, $stage, $modulepath) =
 			/^([0-7]+) ([0-9a-f]{40}) ([0-3])\t(.*)$/;
 		next unless $mode eq "160000";
 		if ($stage ne "0") {
-			if (!$unmerged{$path}++) {
-				print "$mode $null_sha1 U\t$path\n";
+			if (!$unmerged{$modulepath}++) {
+				print "$mode $null_sha1 U\t$modulepath\n";
 			}
 			next;
 		}
@@ -105,7 +105,7 @@ module_name()
 	name=$( git config -f .gitmodules --get-regexp '^submodule\..*\.path$' |
 		sed -n -e 's|^submodule\.\(.*\)\.path '"$re"'$|\1|p' )
        test -z "$name" &&
-       die "$(eval_gettext "No submodule mapping found in .gitmodules for path '\$path'")"
+       die "$(eval_gettext "No submodule mapping found in .gitmodules for path '\$modulepath'")"
        echo "$name"
 }
 
@@ -119,7 +119,7 @@ module_name()
 #
 module_clone()
 {
-	path=$1
+	modulepath=$1
 	url=$2
 	reference="$3"
 	quiet=
@@ -130,11 +130,11 @@ module_clone()
 
 	if test -n "$reference"
 	then
-		git-clone $quiet "$reference" -n "$url" "$path"
+		git-clone $quiet "$reference" -n "$url" "$modulepath"
 	else
-		git-clone $quiet -n "$url" "$path"
+		git-clone $quiet -n "$url" "$modulepath"
 	fi ||
-	die "$(eval_gettext "Clone of '\$url' into submodule path '\$path' failed")"
+	die "$(eval_gettext "Clone of '\$url' into submodule path '\$modulepath' failed")"
 }
 
 #
@@ -185,14 +185,14 @@ cmd_add()
 	done
 
 	repo=$1
-	path=$2
+	modulepath=$2
 
-	if test -z "$path"; then
-		path=$(echo "$repo" |
+	if test -z "$modulepath"; then
+		modulepath=$(echo "$repo" |
 			sed -e 's|/$||' -e 's|:*/*\.git$||' -e 's|.*[/:]||g')
 	fi
 
-	if test -z "$repo" -o -z "$path"; then
+	if test -z "$repo" -o -z "$modulepath"; then
 		usage
 	fi
 
@@ -213,7 +213,7 @@ cmd_add()
 
 	# normalize path:
 	# multiple //; leading ./; /./; /../; trailing /
-	path=$(printf '%s/\n' "$path" |
+	modulepath=$(printf '%s/\n' "$modulepath" |
 		sed -e '
 			s|//*|/|g
 			s|^\(\./\)*||
@@ -223,51 +223,51 @@ cmd_add()
 			tstart
 			s|/*$||
 		')
-	git ls-files --error-unmatch "$path" > /dev/null 2>&1 &&
-	die "$(eval_gettext "'\$path' already exists in the index")"
+	git ls-files --error-unmatch "$modulepath" > /dev/null 2>&1 &&
+	die "$(eval_gettext "'\$modulepath' already exists in the index")"
 
-	if test -z "$force" && ! git add --dry-run --ignore-missing "$path" > /dev/null 2>&1
+	if test -z "$force" && ! git add --dry-run --ignore-missing "$modulepath" > /dev/null 2>&1
 	then
 		cat >&2 <<EOF
 The following path is ignored by one of your .gitignore files:
-$(gettext $path)
+$(gettext $modulepath)
 Use -f if you really want to add it.
 EOF
 		exit 1
 	fi
 
 	# perhaps the path exists and is already a git repo, else clone it
-	if test -e "$path"
+	if test -e "$modulepath"
 	then
-		if test -d "$path"/.git -o -f "$path"/.git
+		if test -d "$modulepath"/.git -o -f "$modulepath"/.git
 		then
-			eval_gettext "Adding existing repo at '\$path' to the index"; echo
+			eval_gettext "Adding existing repo at '\$modulepath' to the index"; echo
 		else
-			die "$(eval_gettext "'\$path' already exists and is not a valid git repo")"
+			die "$(eval_gettext "'\$modulepath' already exists and is not a valid git repo")"
 		fi
 
 	else
 
-		module_clone "$path" "$realrepo" "$reference" || exit
+		module_clone "$modulepath" "$realrepo" "$reference" || exit
 		(
 			clear_local_git_env
-			cd "$path" &&
+			cd "$modulepath" &&
 			# ash fails to wordsplit ${branch:+-b "$branch"...}
 			case "$branch" in
 			'') git checkout -f -q ;;
 			?*) git checkout -f -q -B "$branch" "origin/$branch" ;;
 			esac
-		) || die "$(eval_gettext "Unable to checkout submodule '\$path'")"
+		) || die "$(eval_gettext "Unable to checkout submodule '\$modulepath'")"
 	fi
-	git config submodule."$path".url "$realrepo"
+	git config submodule."$modulepath".url "$realrepo"
 
-	git add $force "$path" ||
-	die "$(eval_gettext "Failed to add submodule '\$path'")"
+	git add $force "$modulepath" ||
+	die "$(eval_gettext "Failed to add submodule '\$modulepath'")"
 
-	git config -f .gitmodules submodule."$path".path "$path" &&
-	git config -f .gitmodules submodule."$path".url "$repo" &&
+	git config -f .gitmodules submodule."$modulepath".path "$modulepath" &&
+	git config -f .gitmodules submodule."$modulepath".url "$repo" &&
 	git add --force .gitmodules ||
-	die "$(eval_gettext "Failed to register submodule '\$path'")"
+	die "$(eval_gettext "Failed to register submodule '\$modulepath'")"
 }
 
 #
@@ -305,23 +305,23 @@ cmd_foreach()
 	exec 3<&0
 
 	module_list |
-	while read mode sha1 stage path
+	while read mode sha1 stage modulepath
 	do
-		if test -e "$path"/.git
+		if test -e "$modulepath"/.git
 		then
-			say "$(eval_gettext "Entering '\$prefix\$path'")"
-			name=$(module_name "$path")
+			say "$(eval_gettext "Entering '\$prefix\$modulepath'")"
+			name=$(module_name "$modulepath")
 			(
-				prefix="$prefix$path/"
+				prefix="$prefix$modulepath/"
 				clear_local_git_env
-				cd "$path" &&
+				cd "$modulepath" &&
 				eval "$@" &&
 				if test -n "$recursive"
 				then
 					cmd_foreach "--recursive" "$@"
 				fi
 			) <&3 3<&- ||
-			die "$(eval_gettext "Stopping at '\$path'; script returned non-zero status.")"
+			die "$(eval_gettext "Stopping at '\$modulepath'; script returned non-zero status.")"
 		fi
 	done
 }
@@ -355,15 +355,15 @@ cmd_init()
 	done
 
 	module_list "$@" |
-	while read mode sha1 stage path
+	while read mode sha1 stage modulepath
 	do
 		# Skip already registered paths
-		name=$(module_name "$path") || exit
+		name=$(module_name "$modulepath") || exit
 		if test -z "$(git config "submodule.$name.url")"
 		then
 			url=$(git config -f .gitmodules submodule."$name".url)
 			test -z "$url" &&
-			die "$(eval_gettext "No url found for submodule path '\$path' in .gitmodules")"
+			die "$(eval_gettext "No url found for submodule path '\$modulepath' in .gitmodules")"
 
 			# Possibly a url relative to parent
 			case "$url" in
@@ -372,7 +372,7 @@ cmd_init()
 				;;
 			esac
 			git config submodule."$name".url "$url" ||
-			die "$(eval_gettext "Failed to register url for submodule path '\$path'")"
+			die "$(eval_gettext "Failed to register url for submodule path '\$modulepath'")"
 		fi
 
 		# Copy "update" setting when it is not set yet
@@ -380,9 +380,9 @@ cmd_init()
 		test -z "$upd" ||
 		test -n "$(git config submodule."$name".update)" ||
 		git config submodule."$name".update "$upd" ||
-		die "$(eval_gettext "Failed to register update mode for submodule path '\$path'")"
+		die "$(eval_gettext "Failed to register update mode for submodule path '\$modulepath'")"
 
-		say "$(eval_gettext "Submodule '\$name' (\$url) registered for path '\$path'")"
+		say "$(eval_gettext "Submodule '\$name' (\$url) registered for path '\$modulepath'")"
 	done
 }
 
@@ -451,14 +451,14 @@ cmd_update()
 	cloned_modules=
 	module_list "$@" | {
 	err=
-	while read mode sha1 stage path
+	while read mode sha1 stage modulepath
 	do
 		if test "$stage" = U
 		then
-			echo >&2 "Skipping unmerged submodule $path"
+			echo >&2 "Skipping unmerged submodule $modulepath"
 			continue
 		fi
-		name=$(module_name "$path") || exit
+		name=$(module_name "$modulepath") || exit
 		url=$(git config submodule."$name".url)
 		update_module=$(git config submodule."$name".update)
 		if test -z "$url"
@@ -466,20 +466,20 @@ cmd_update()
 			# Only mention uninitialized submodules when its
 			# path have been specified
 			test "$#" != "0" &&
-			say "$(eval_gettext "Submodule path '\$path' not initialized
+			say "$(eval_gettext "Submodule path '\$modulepath' not initialized
 Maybe you want to use 'update --init'?")"
 			continue
 		fi
 
-		if ! test -d "$path"/.git -o -f "$path"/.git
+		if ! test -d "$modulepath"/.git -o -f "$modulepath"/.git
 		then
-			module_clone "$path" "$url" "$reference"|| exit
+			module_clone "$modulepath" "$url" "$reference"|| exit
 			cloned_modules="$cloned_modules;$name"
 			subsha1=
 		else
-			subsha1=$(clear_local_git_env; cd "$path" &&
+			subsha1=$(clear_local_git_env; cd "$modulepath" &&
 				git rev-parse --verify HEAD) ||
-			die "$(eval_gettext "Unable to find current revision in submodule path '\$path'")"
+			die "$(eval_gettext "Unable to find current revision in submodule path '\$modulepath'")"
 		fi
 
 		if ! test -z "$update"
@@ -500,10 +500,10 @@ Maybe you want to use 'update --init'?")"
 			then
 				# Run fetch only if $sha1 isn't present or it
 				# is not reachable from a ref.
-				(clear_local_git_env; cd "$path" &&
+				(clear_local_git_env; cd "$modulepath" &&
 					( (rev=$(git rev-list -n 1 $sha1 --not --all 2>/dev/null) &&
 					 test -z "$rev") || git-fetch)) ||
-				die "$(eval_gettext "Unable to fetch in submodule path '\$path'")"
+				die "$(eval_gettext "Unable to fetch in submodule path '\$modulepath'")"
 			fi
 
 			# Is this something we just cloned?
@@ -517,24 +517,24 @@ Maybe you want to use 'update --init'?")"
 			case "$update_module" in
 			rebase)
 				command="git rebase"
-				die_msg="$(eval_gettext "Unable to rebase '\$sha1' in submodule path '\$path'")"
-				say_msg="$(eval_gettext "Submodule path '\$path': rebased into '\$sha1'")"
+				die_msg="$(eval_gettext "Unable to rebase '\$sha1' in submodule path '\$modulepath'")"
+				say_msg="$(eval_gettext "Submodule path '\$modulepath': rebased into '\$sha1'")"
 				must_die_on_failure=yes
 				;;
 			merge)
 				command="git merge"
-				die_msg="$(eval_gettext "Unable to merge '\$sha1' in submodule path '\$path'")"
-				say_msg="$(eval_gettext "Submodule path '\$path': merged in '\$sha1'")"
+				die_msg="$(eval_gettext "Unable to merge '\$sha1' in submodule path '\$modulepath'")"
+				say_msg="$(eval_gettext "Submodule path '\$modulepath': merged in '\$sha1'")"
 				must_die_on_failure=yes
 				;;
 			*)
 				command="git checkout $subforce -q"
-				die_msg="$(eval_gettext "Unable to checkout '\$sha1' in submodule path '\$path'")"
-				say_msg="$(eval_gettext "Submodule path '\$path': checked out '\$sha1'")"
+				die_msg="$(eval_gettext "Unable to checkout '\$sha1' in submodule path '\$modulepath'")"
+				say_msg="$(eval_gettext "Submodule path '\$modulepath': checked out '\$sha1'")"
 				;;
 			esac
 
-			if (clear_local_git_env; cd "$path" && $command "$sha1")
+			if (clear_local_git_env; cd "$modulepath" && $command "$sha1")
 			then
 				say "$say_msg"
 			elif test -n "$must_die_on_failure"
@@ -548,11 +548,11 @@ Maybe you want to use 'update --init'?")"
 
 		if test -n "$recursive"
 		then
-			(clear_local_git_env; cd "$path" && eval cmd_update "$orig_flags")
+			(clear_local_git_env; cd "$modulepath" && eval cmd_update "$orig_flags")
 			res=$?
 			if test $res -gt 0
 			then
-				die_msg="$(eval_gettext "Failed to recurse into submodule path '\$path'")"
+				die_msg="$(eval_gettext "Failed to recurse into submodule path '\$modulepath'")"
 				if test $res -eq 1
 				then
 					err="${err};$die_msg"
@@ -846,30 +846,30 @@ cmd_status()
 	done
 
 	module_list "$@" |
-	while read mode sha1 stage path
+	while read mode sha1 stage modulepath
 	do
-		name=$(module_name "$path") || exit
+		name=$(module_name "$modulepath") || exit
 		url=$(git config submodule."$name".url)
-		displaypath="$prefix$path"
+		displaypath="$prefix$modulepath"
 		if test "$stage" = U
 		then
 			say "U$sha1 $displaypath"
 			continue
 		fi
-		if test -z "$url" || ! test -d "$path"/.git -o -f "$path"/.git
+		if test -z "$url" || ! test -d "$modulepath"/.git -o -f "$modulepath"/.git
 		then
 			say "-$sha1 $displaypath"
 			continue;
 		fi
-		set_name_rev "$path" "$sha1"
-		if git diff-files --ignore-submodules=dirty --quiet -- "$path"
+		set_name_rev "$modulepath" "$sha1"
+		if git diff-files --ignore-submodules=dirty --quiet -- "$modulepath"
 		then
 			say " $sha1 $displaypath$revname"
 		else
 			if test -z "$cached"
 			then
-				sha1=$(clear_local_git_env; cd "$path" && git rev-parse --verify HEAD)
-				set_name_rev "$path" "$sha1"
+				sha1=$(clear_local_git_env; cd "$modulepath" && git rev-parse --verify HEAD)
+				set_name_rev "$modulepath" "$sha1"
 			fi
 			say "+$sha1 $displaypath$revname"
 		fi
@@ -879,10 +879,10 @@ cmd_status()
 			(
 				prefix="$displaypath/"
 				clear_local_git_env
-				cd "$path" &&
+				cd "$modulepath" &&
 				eval cmd_status "$orig_args"
 			) ||
-			die "$(eval_gettext "Failed to recurse into submodule path '\$path'")"
+			die "$(eval_gettext "Failed to recurse into submodule path '\$modulepath'")"
 		fi
 	done
 }
@@ -914,9 +914,9 @@ cmd_sync()
 	done
 	cd_to_toplevel
 	module_list "$@" |
-	while read mode sha1 stage path
+	while read mode sha1 stage modulepath
 	do
-		name=$(module_name "$path")
+		name=$(module_name "$modulepath")
 		url=$(git config -f .gitmodules --get submodule."$name".url)
 
 		# Possibly a url relative to parent
@@ -931,11 +931,11 @@ cmd_sync()
 			say "$(eval_gettext "Synchronizing submodule url for '\$name'")"
 			git config submodule."$name".url "$url"
 
-			if test -e "$path"/.git
+			if test -e "$modulepath"/.git
 			then
 			(
 				clear_local_git_env
-				cd "$path"
+				cd "$modulepath"
 				remote=$(get_default_remote)
 				git config remote."$remote".url "$url"
 			)
